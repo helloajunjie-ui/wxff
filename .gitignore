@@ -1,0 +1,42 @@
+# ===== 敏感数据 / 大文件（绝不入库）=====
+# 解密后的数据库、密钥、备份导出、调试产物全部在 data/ 下（约 2.7GB）
+data/
+
+# 根目录下的调试图片与二进制
+test_sns_decrypted.jpg
+*.exe
+
+# 密钥 / 明文导出
+keys.txt
+candidate_keys.txt
+*.key
+
+# ===== Go 构建产物 =====
+/wxff
+/wxff-server
+/wxff.exe
+/wxff-server.exe
+*.test
+*.out
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ===== 编辑器 / 系统 =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+
+# ===== 临时调试输出 =====
+tools/out.txt
+tools/scroll_out.txt
+tools/wechat_tree.txt
+
+# ===== 嵌套的独立 git 仓库（wxkey 有自己的 .git，作为独立项目维护）=====
+tools/wxkey/

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>微信备份工具</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background:#f5f5f5; padding:20px; }
+.container { max-width:860px; margin:0 auto; }
+.step { background:#fff; border-radius:8px; padding:20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.1); opacity:0.5; transition:opacity 0.3s; }
+.step.active { opacity:1; }
+.step.done { opacity:0.8; }
+.step-title { font-size:16px; font-weight:600; margin-bottom:12px; color:#333; }
+.status-ok { color:#07c160; }
+.status-err { color:#e64340; }
+.btn { background:#07c160; color:#fff; border:none; padding:8px 20px; border-radius:4px; cursor:pointer; font-size:14px; }
+.btn:hover { background:#06ad56; }
+.btn:disabled { background:#ccc; cursor:not-allowed; }
+.btn-sm { padding:4px 12px; font-size:13px; }
+
+/* 当前账号横幅 */
+.account-banner { display:flex; align-items:center; gap:12px; background:#e8f7ee; border:1px solid #b7e4c7; border-radius:6px; padding:10px 14px; margin-bottom:12px; }
+.account-banner .acc-avatar { width:44px; height:44px; border-radius:6px; background:#07c160; color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.account-banner .acc-name { font-size:15px; font-weight:600; color:#1a1a1a; }
+.account-banner .acc-wxid { font-size:12px; color:#888; margin-top:2px; }
+
+/* 账号选择卡片 */
+.account-list { display:flex; flex-direction:column; gap:10px; }
+.account-card { display:flex; align-items:center; gap:12px; border:2px solid #e5e5e5; border-radius:8px; padding:12px 14px; cursor:pointer; transition:all 0.15s; }
+.account-card:hover { border-color:#07c160; background:#f6fdf9; }
+.account-card.selected { border-color:#07c160; background:#e8f7ee; }
+.account-card .acc-avatar { width:48px; height:48px; border-radius:8px; background:#07c160; color:#fff; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+.account-card .acc-info { flex:1; }
+.account-card .acc-name { font-size:15px; font-weight:600; color:#1a1a1a; }
+.account-card .acc-wxid { font-size:12px; color:#888; margin-top:3px; }
+.account-card .acc-badge { font-size:11px; color:#07c160; border:1px solid #07c160; border-radius:10px; padding:1px 8px; margin-left:6px; }
+.account-card .acc-check { font-size:20px; color:#07c160; visibility:hidden; }
+.account-card.selected .acc-check { visibility:visible; }
+
+/* 好友列表 */
+.contact-list { max-height:420px; overflow-y:auto; border:1px solid #e5e5e5; border-radius:4px; }
+.contact-item { padding:8px 12px; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:10px; }
+.contact-item:hover { background:#f9f9f9; }
+.contact-item .avatar { width:40px; height:40px; border-radius:4px; background:#ddd; flex-shrink:0; object-fit:cover; }
+.contact-item .name { flex:1; min-width:0; }
+.contact-item .name .nick { font-size:14px; color:#222; font-weight:500; }
+.contact-item .name .remark { font-size:12px; color:#07c160; margin-left:6px; }
+.contact-item .name .wxid { font-size:12px; color:#999; margin-top:2px; word-break:break-all; }
+.contact-item .name .stats { font-size:12px; color:#999; margin-top:2px; }
+.checkbox-group { display:flex; gap:16px; margin:8px 0; flex-wrap:wrap; }
+.checkbox-group label { font-size:14px; color:#333; }
+.progress-bar { background:#e5e5e5; border-radius:4px; height:20px; overflow:hidden; margin:12px 0; }
+.progress-fill { background:#07c160; height:100%; transition:width 0.3s; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; }
+.tip { background:#fff7e6; border-left:3px solid #faad14; padding:10px 12px; margin:8px 0; font-size:13px; color:#666; }
+.spinner { display:inline-block; width:16px; height:16px; border:2px solid #ddd; border-top-color:#07c160; border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h2 style="margin-bottom:20px;">微信备份工具</h2>
+
+  <!-- 步骤1：选择账号 -->
+  <div class="step active" id="step1">
+    <div class="step-title">① 选择要备份的微信账号</div>
+    <div id="account-status">正在检测微信账号... <span class="spinner"></span></div>
+    <div class="account-list" id="account-list"></div>
+  </div>
+
+  <!-- 步骤2：选好友 -->
+  <div class="step" id="step2">
+    <div class="step-title">② 选择要备份的好友</div>
+    <div class="account-banner" id="account-banner" style="display:none;">
+      <div class="acc-avatar">💬</div>
+      <div>
+        <div class="acc-name" id="banner-name"></div>
+        <div class="acc-wxid" id="banner-wxid"></div>
+      </div>
+    </div>
+    <input type="text" id="search-input" placeholder="搜索好友昵称/备注/wxid..." style="width:100%; padding:8px 12px; margin:8px 0; border:1px solid #ddd; border-radius:4px; font-size:14px;">
+    <div class="contact-list" id="contact-list"></div>
+    <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+      <button class="btn btn-sm" onclick="selectAll(true)">全选</button>
+      <button class="btn btn-sm" onclick="selectAll(false)">全不选</button>
+      <span id="selected-count" style="font-size:13px; color:#666;"></span>
+    </div>
+  </div>
+
+  <!-- 步骤3：选内容 -->
+  <div class="step" id="step3">
+    <div class="step-title">③ 选备份内容</div>
+    <div style="margin:12px 0; padding:12px; border:1px solid #e5e5e5; border-radius:4px;">
+      <div style="font-weight:600; margin-bottom:8px;">聊天记录</div>
+      <div class="checkbox-group">
+        <label><input type="checkbox" name="chat_types" value="text" checked> 文字</label>
+        <label><input type="checkbox" name="chat_types" value="image" checked> 图片</label>
+        <label><input type="checkbox" name="chat_types" value="file" checked> 文件</label>
+        <label><input type="checkbox" name="chat_types" value="video"> 视频</label>
+      </div>
+    </div>
+    <div style="margin:12px 0; padding:12px; border:1px solid #e5e5e5; border-radius:4px;">
+      <div style="font-weight:600; margin-bottom:8px;">朋友圈</div>
+      <div class="checkbox-group">
+        <label><input type="checkbox" name="sns_types" value="text" checked> 文字</label>
+        <label><input type="checkbox" name="sns_types" value="image" checked> 图片</label>
+        <label><input type="checkbox" name="sns_types" value="video"> 视频</label>
+      </div>
+    </div>
+    <div class="tip">提示：朋友圈需要你先在微信里手动刷过（往上滑加载更多），我们才能导出本地已缓存的数据。</div>
+  </div>
+
+  <!-- 步骤4：开始备份 -->
+  <div class="step" id="step4">
+    <div class="step-title">④ 开始备份</div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:14px; color:#333;">备份目录：</label>
+      <input type="text" id="out-dir" value="F:\wxff\data\backup" style="width:400px; padding:6px 10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
+    </div>
+    <div class="tip">备份期间不要关闭微信，不要操作聊天窗口。</div>
+    <button class="btn" id="btn-backup" onclick="startBackup()" disabled>开始备份</button>
+    <div class="progress-bar" id="progress-bar" style="display:none;">
+      <div class="progress-fill" id="progress-fill">0%</div>
+    </div>
+    <div id="backup-status"></div>
+  </div>
+</div>
+
+<script>
+let currentAccount = null; // {wxid, nick, data_root}
+
+function setStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('step' + i).classList.remove('active', 'done');
+  }
+  for (let i = 1; i < n; i++) {
+    document.getElementById('step' + i).classList.add('done');
+  }
+  document.getElementById('step' + n).classList.add('active');
+}
+
+// 步骤1：加载账号列表
+async function loadAccounts() {
+  const el = document.getElementById('account-status');
+  try {
+    const r = await fetch('/api/accounts');
+    const d = await r.json();
+    if (!d.ok || !d.accounts || d.accounts.length === 0) {
+      el.innerHTML = `<span class="status-err">✗</span> 没找到可用的微信账号<br><br>请确保：<br>1. 微信已打开并登录<br>2. 已提取过数据库密钥（keys.txt）`;
+      return;
+    }
+    el.innerHTML = `检测到 <b>${d.accounts.length}</b> 个账号，请选择要备份的账号：`;
+    const list = document.getElementById('account-list');
+    list.innerHTML = '';
+    d.accounts.forEach(a => {
+      const card = document.createElement('div');
+      card.className = 'account-card';
+      const nick = a.nick || a.wxid;
+      card.innerHTML = `
+        <div class="acc-avatar">💬</div>
+        <div class="acc-info">
+          <div class="acc-name">${escapeHtml(nick)}${a.recent ? '<span class="acc-badge">最近使用</span>' : ''}</div>
+          <div class="acc-wxid">${escapeHtml(a.wxid)}</div>
+        </div>
+        <div class="acc-check">✓</div>`;
+      card.onclick = () => selectAccount(a, card);
+      list.appendChild(card);
+    });
+  } catch (e) {
+    el.innerText = '连接服务器失败: ' + e.message;
+  }
+}
+
+// 选中账号 -> 初始化该账号 -> 进入好友选择
+async function selectAccount(a, card) {
+  document.querySelectorAll('.account-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+  currentAccount = a;
+
+  const el = document.getElementById('account-status');
+  el.innerHTML = `正在初始化账号 <b>${escapeHtml(a.nick || a.wxid)}</b>... <span class="spinner"></span>`;
+
+  try {
+    const r = await fetch('/api/init', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({data_root: a.data_root})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      currentAccount.nick = d.account_nick || a.nick;
+      el.innerHTML = `<span class="status-ok">✓</span> 账号已就绪：<b>${escapeHtml(currentAccount.nick || d.account)}</b>（${escapeHtml(d.account)}）`;
+      setStep(2);
+      loadContacts();
+    } else {
+      el.innerHTML = `<span class="status-err">✗</span> 初始化失败：${escapeHtml(d.error || '未知错误')}`;
+    }
+  } catch (e) {
+    el.innerHTML = `<span class="status-err">✗</span> 初始化失败: ${e.message}`;
+  }
+}
+
+// 步骤2：加载好友
+async function loadContacts() {
+  const r = await fetch('/api/contacts');
+  const d = await r.json();
+
+  // 顶部显示当前账号
+  const banner = document.getElementById('account-banner');
+  banner.style.display = 'flex';
+  document.getElementById('banner-name').innerText = d.account_nick || currentAccount.nick || d.account;
+  document.getElementById('banner-wxid').innerText = '账号 wxid：' + d.account;
+
+  const list = document.getElementById('contact-list');
+  list.innerHTML = '';
+  d.contacts.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'contact-item';
+    const avatar = c.head_url ? `<img class="avatar" src="${c.head_url}" onerror="this.style.display='none'">` : `<div class="avatar"></div>`;
+    const displayName = c.remark || c.nick || c.wxid;
+    const remarkTag = (c.remark && c.nick && c.remark !== c.nick) ? `<span class="remark">备注</span>` : '';
+    div.innerHTML = `<input type="checkbox" class="contact-check" value="${escapeAttr(c.wxid)}">
+      ${avatar}
+      <span class="name">
+        <div class="nick">${escapeHtml(displayName)}${remarkTag}</div>
+        <div class="wxid">${escapeHtml(c.wxid)}${c.alias ? ' · ' + escapeHtml(c.alias) : ''}</div>
+        <div class="stats">💬 ${c.chat_text}文字 · ${c.chat_img}图片 · ${c.chat_video}视频 &nbsp;|&nbsp; 📱 朋友圈 ${c.sns_count}条 · ${c.sns_img}张图</div>
+      </span>`;
+    list.appendChild(div);
+  });
+  document.getElementById('btn-backup').disabled = false;
+  updateSelectedCount();
+
+  // 勾选变化时更新计数
+  document.querySelectorAll('.contact-check').forEach(cb => cb.addEventListener('change', updateSelectedCount));
+
+  // 搜索
+  const si = document.getElementById('search-input');
+  si.oninput = function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('.contact-item').forEach(item => {
+      const text = item.innerText.toLowerCase();
+      item.style.display = text.includes(q) ? '' : 'none';
+    });
+  };
+}
+
+function updateSelectedCount() {
+  const n = document.querySelectorAll('.contact-check:checked').length;
+  document.getElementById('selected-count').innerText = n > 0 ? `已选 ${n} 个好友` : '';
+}
+
+function selectAll(checked) {
+  document.querySelectorAll('.contact-item').forEach(item => {
+    if (item.style.display !== 'none') {
+      const cb = item.querySelector('.contact-check');
+      if (cb) cb.checked = checked;
+    }
+  });
+  updateSelectedCount();
+}
+
+async function startBackup() {
+  const users = [];
+  document.querySelectorAll('.contact-check:checked').forEach(cb => users.push(cb.value));
+  if (users.length === 0) {
+    alert('请先选择好友');
+    return;
+  }
+  const chatTypes = [];
+  document.querySelectorAll('input[name=chat_types]:checked').forEach(cb => chatTypes.push(cb.value));
+  const snsTypes = [];
+  document.querySelectorAll('input[name=sns_types]:checked').forEach(cb => snsTypes.push(cb.value));
+  const outDir = document.getElementById('out-dir').value;
+
+  document.getElementById('btn-backup').disabled = true;
+  document.getElementById('progress-bar').style.display = 'block';
+
+  await fetch('/api/backup', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({users, chat_types: chatTypes, sns_types: snsTypes, from:0, to:0, out_dir: outDir})
+  });
+
+  const timer = setInterval(async () => {
+    const r = await fetch('/api/progress');
+    const p = await r.json();
+    const pct = p.total > 0 ? Math.round(p.done / p.total * 100) : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-fill').innerText = pct + '%';
+    document.getElementById('backup-status').innerText = `正在备份: ${p.current} (${p.done}/${p.total})`;
+    if (p.finished) {
+      clearInterval(timer);
+      document.getElementById('backup-status').innerHTML = `<span class="status-ok">✓ 备份完成！归档目录: ${escapeHtml(outDir)}</span>`;
+      document.getElementById('btn-backup').disabled = false;
+    }
+  }, 500);
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  var amp = String.fromCharCode(38) + 'amp;';
+  var lt = String.fromCharCode(38) + 'lt;';
+  var gt = String.fromCharCode(38) + 'gt;';
+  var quot = String.fromCharCode(38) + 'quot;';
+  var apos = String.fromCharCode(38) + '#39;';
+  return String(s)
+    .split(String.fromCharCode(38)).join(amp)
+    .split(String.fromCharCode(60)).join(lt)
+    .split(String.fromCharCode(62)).join(gt)
+    .split(String.fromCharCode(34)).join(quot)
+    .split(String.fromCharCode(39)).join(apos);
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+// 启动：加载账号列表
+loadAccounts();
+</script>
+</body>
+</html>
